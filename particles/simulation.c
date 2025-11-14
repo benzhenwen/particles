@@ -57,91 +57,81 @@ void tick_sim() {
     for (uint32_t i = 0; i < particles_c; i++) {
         particles[i].pos.x += particles[i].vel.x;
         particles[i].pos.y += particles[i].vel.y;
-    }
-    
-    for (int c = 0; c < 20; c++) {
     
         // bounds colision
-        for (uint32_t i = 0; i < particles_c; i++) {
-            // floor
-            if (particles[i].pos.y < 0 + PARTICLE_RADIUS) {
-                particles[i].pos.y = PARTICLE_RADIUS;
-                particles[i].vel.y *= -GROUND_ELASTICITY;
-                
-                // ground friction
-                particles[i].vel.x *= GROUND_FRICTION;
-            }
-            // ceiling
-            else if (particles[i].pos.y > SIM_HEIGHT - PARTICLE_RADIUS) {
-                particles[i].pos.y = SIM_HEIGHT - PARTICLE_RADIUS;
-                particles[i].vel.y *= -GROUND_ELASTICITY;
-            }
+        // floor
+        if (particles[i].pos.y < 0 + PARTICLE_RADIUS) {
+            particles[i].pos.y = PARTICLE_RADIUS;
+            particles[i].vel.y *= -GROUND_ELASTICITY;
+            
+            // ground friction
+            particles[i].vel.x *= GROUND_FRICTION;
+        }
+        // ceiling
+        else if (particles[i].pos.y > SIM_HEIGHT - PARTICLE_RADIUS) {
+            particles[i].pos.y = SIM_HEIGHT - PARTICLE_RADIUS;
+            particles[i].vel.y *= -GROUND_ELASTICITY;
+        }
 
-            // left wall
-            if (particles[i].pos.x < 0 + PARTICLE_RADIUS) {
-                particles[i].pos.x = PARTICLE_RADIUS;
-                particles[i].vel.x *= -GROUND_ELASTICITY;
-            }
-            // right wall
-            else if (particles[i].pos.x > SIM_WIDTH - PARTICLE_RADIUS) {
-                particles[i].pos.x = SIM_WIDTH - PARTICLE_RADIUS;
-                particles[i].vel.x *= -GROUND_ELASTICITY;
-            }
+        // left wall
+        if (particles[i].pos.x < 0 + PARTICLE_RADIUS) {
+            particles[i].pos.x = PARTICLE_RADIUS;
+            particles[i].vel.x *= -GROUND_ELASTICITY;
+        }
+        // right wall
+        else if (particles[i].pos.x > SIM_WIDTH - PARTICLE_RADIUS) {
+            particles[i].pos.x = SIM_WIDTH - PARTICLE_RADIUS;
+            particles[i].vel.x *= -GROUND_ELASTICITY;
         }
 
         // others colision
-        for (uint32_t i = 0; i < particles_c; i++) {
-            for (uint32_t j = i+1; j < particles_c; j++) {
-                const Particle curr = particles[i];
-                const Particle other = particles[j];
+        for (uint32_t j = 0; j < particles_c; j++) if (j != i) {
+            const Particle curr = particles[i];
+            const Particle other = particles[j];
 
-                // square bounds check first
-                if (fabsf(other.pos.x - curr.pos.x) < 2*PARTICLE_RADIUS && fabsf(other.pos.y - curr.pos.y) < 2*PARTICLE_RADIUS) {
-                    const float dist_between = sqrtf(powf(other.pos.x - curr.pos.x, 2) + powf(other.pos.y - curr.pos.y, 2));
-                    if (dist_between < 2*PARTICLE_RADIUS) {
-                        const float angle = atan2f(other.pos.y - curr.pos.y, other.pos.x - curr.pos.x);
-                        const float x_push_factor = cosf(angle);
-                        const float y_push_factor = sinf(angle);
+            // square bounds check first
+            if (fabsf(other.pos.x - curr.pos.x) < 2*PARTICLE_RADIUS && fabsf(other.pos.y - curr.pos.y) < 2*PARTICLE_RADIUS) {
+                const float dist_between = sqrtf(powf(other.pos.x - curr.pos.x, 2) + powf(other.pos.y - curr.pos.y, 2));
+                if (dist_between < 2*PARTICLE_RADIUS) {
+                    const float angle = atan2f(other.pos.y - curr.pos.y, other.pos.x - curr.pos.x);
+                    const float push_angle = atan2f(curr.vel.y, curr.vel.x);
+                    const float x_push_factor = cosf(push_angle);
+                    const float y_push_factor = sinf(push_angle);
+                    
+                    const float push_dist = ((2*PARTICLE_RADIUS - dist_between) / 2) * cosf(angle - push_angle);
+
+                    // collision seperation
+                    particles[i].pos.x -= push_dist * x_push_factor;
+                    particles[i].pos.y -= push_dist * y_push_factor;
+
+                    // collision velocities
+                    const float nx = cosf(angle);
+                    const float ny = sinf(angle);
+                    const float tx = -ny;
+                    const float ty = nx;
+
+                    const float v1n = curr.vel.x * nx + curr.vel.y * ny;
+                    const float v1t = curr.vel.x * tx + curr.vel.y * ty;
+                    
+                    const float v2n = other.vel.x * nx + other.vel.y * ny;
+                    const float v2t = other.vel.x * tx + other.vel.y * ty;
+
+                    if (v1n - v2n > 0.0f) {
+                        const float v1n_prime = v2n;
+                        const float v2n_prime = v1n;
+
+                        const float v1t_prime = v1t;
+                        const float v2t_prime = v2t;
+
+                        particles[i].vel.x = v1n_prime * nx + v1t_prime * tx;
+                        particles[i].vel.y = v1n_prime * ny + v1t_prime * ty;
                         
-                        const float push_dist = (2*PARTICLE_RADIUS - dist_between) / 2;
-
-                        // collision seperation
-                        particles[i].pos.x -= push_dist * x_push_factor;
-                        particles[i].pos.y -= push_dist * y_push_factor;
-
-                        particles[j].pos.x += push_dist * x_push_factor;
-                        particles[j].pos.y += push_dist * y_push_factor;
-
-                        // collision velocities
-                        const float nx = x_push_factor;
-                        const float ny = y_push_factor;
-                        const float tx = -ny;
-                        const float ty = nx;
-
-                        const float v1n = curr.vel.x * nx + curr.vel.y * ny;
-                        const float v1t = curr.vel.x * tx + curr.vel.y * ty;
-                        
-                        const float v2n = other.vel.x * nx + other.vel.y * ny;
-                        const float v2t = other.vel.x * tx + other.vel.y * ty;
-
-                        if (v1n - v2n > 0.0f) {
-                            const float v1n_prime = v2n;
-                            const float v2n_prime = v1n;
-
-                            const float v1t_prime = v1t;
-                            const float v2t_prime = v2t;
-
-                            particles[i].vel.x = v1n_prime * nx + v1t_prime * tx;
-                            particles[i].vel.y = v1n_prime * ny + v1t_prime * ty;
-                            
-                            particles[j].vel.x = v2n_prime * nx + v2t_prime * tx;
-                            particles[j].vel.y = v2n_prime * ny + v2t_prime * ty;
-                        }
-
+                        particles[j].vel.x = v2n_prime * nx + v2t_prime * tx;
+                        particles[j].vel.y = v2n_prime * ny + v2t_prime * ty;
                     }
+
                 }
             }
         }
     }
-
 }
